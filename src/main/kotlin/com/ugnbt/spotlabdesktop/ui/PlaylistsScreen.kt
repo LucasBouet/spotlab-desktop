@@ -120,6 +120,8 @@ fun PlaylistsScreen(api: SpotlabApi, playback: PlaybackRepository, library: Libr
                             liked = uiTrack.id in likedIds,
                             onToggleLike = { library.toggle(uiTrack) },
                             playlistApi = api,
+                            playback = playback,
+                            playlists = playlists,
                             modifier = Modifier.weight(1f),
                         )
                         IconButton(onClick = {

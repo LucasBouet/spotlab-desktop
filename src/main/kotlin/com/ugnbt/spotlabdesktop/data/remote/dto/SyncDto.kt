@@ -20,9 +20,27 @@ data class QueueItemDto(
 data class AddedByDto(val id: String = "", val name: String = "")
 
 @Serializable
+data class JamMemberDto(
+    val userId: String,
+    val name: String = "",
+    val isHost: Boolean = false,
+    val online: Boolean = false,
+)
+
+@Serializable
 data class JamStateDto(
     val id: String,
     val hostId: String = "",
+    val members: List<JamMemberDto> = emptyList(),
+)
+
+@Serializable
+data class JamInviteDto(
+    val jamId: String,
+    val hostId: String = "",
+    val hostName: String = "",
+    val memberCount: Int = 0,
+    val createdAt: String? = null,
 )
 
 /**
@@ -84,6 +102,7 @@ data class RegisterDeviceDto(
 data class SyncSnapshotDto(
     val playback: PlaybackStateDto? = null,
     val devices: List<DeviceDto> = emptyList(),
+    val jamInvites: List<JamInviteDto> = emptyList(),
 )
 
 /**

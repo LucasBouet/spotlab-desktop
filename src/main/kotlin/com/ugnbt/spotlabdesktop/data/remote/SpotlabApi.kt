@@ -1,10 +1,13 @@
 package com.ugnbt.spotlabdesktop.data.remote
 
+import com.ugnbt.spotlabdesktop.data.remote.dto.AdminUserDto
 import com.ugnbt.spotlabdesktop.data.remote.dto.AlbumSearchResponseDto
 import com.ugnbt.spotlabdesktop.data.remote.dto.ApiErrorDto
 import com.ugnbt.spotlabdesktop.data.remote.dto.ArtistPageDto
 import com.ugnbt.spotlabdesktop.data.remote.dto.ArtistSearchResponseDto
 import com.ugnbt.spotlabdesktop.data.remote.dto.AuthResponseDto
+import com.ugnbt.spotlabdesktop.data.remote.dto.BlendDto
+import com.ugnbt.spotlabdesktop.data.remote.dto.BlendsResponseDto
 import com.ugnbt.spotlabdesktop.data.remote.dto.CreatePlaylistResponseDto
 import com.ugnbt.spotlabdesktop.data.remote.dto.DeezerAlbumDto
 import com.ugnbt.spotlabdesktop.data.remote.dto.DeezerArtistDto
@@ -12,9 +15,15 @@ import com.ugnbt.spotlabdesktop.data.remote.dto.DeezerTrackDto
 import com.ugnbt.spotlabdesktop.data.remote.dto.DeviceDto
 import com.ugnbt.spotlabdesktop.data.remote.dto.DeviceResponseDto
 import com.ugnbt.spotlabdesktop.data.remote.dto.DevicesResponseDto
+import com.ugnbt.spotlabdesktop.data.remote.dto.FriendActivitiesDto
+import com.ugnbt.spotlabdesktop.data.remote.dto.FriendActivityUpdateDto
+import com.ugnbt.spotlabdesktop.data.remote.dto.JamOpDto
+import com.ugnbt.spotlabdesktop.data.remote.dto.JamOpResultDto
 import com.ugnbt.spotlabdesktop.data.remote.dto.LikedIdsResponseDto
 import com.ugnbt.spotlabdesktop.data.remote.dto.LikedTrackDto
 import com.ugnbt.spotlabdesktop.data.remote.dto.LikedTracksResponseDto
+import com.ugnbt.spotlabdesktop.data.remote.dto.ListUsersResponseDto
+import com.ugnbt.spotlabdesktop.data.remote.dto.ListeningStatsDto
 import com.ugnbt.spotlabdesktop.data.remote.dto.LyricsDto
 import com.ugnbt.spotlabdesktop.data.remote.dto.MeResponseDto
 import com.ugnbt.spotlabdesktop.data.remote.dto.PlayEventDto
@@ -31,7 +40,10 @@ import com.ugnbt.spotlabdesktop.data.remote.dto.PlaylistsResponseDto
 import com.ugnbt.spotlabdesktop.data.remote.dto.RecommendationsDto
 import com.ugnbt.spotlabdesktop.data.remote.dto.RegisterDeviceDto
 import com.ugnbt.spotlabdesktop.data.remote.dto.ServerConfigDto
+import com.ugnbt.spotlabdesktop.data.remote.dto.SettingsResponseDto
 import com.ugnbt.spotlabdesktop.data.remote.dto.SmartPlaylistsDto
+import com.ugnbt.spotlabdesktop.data.remote.dto.SocialDataDto
+import com.ugnbt.spotlabdesktop.data.remote.dto.SocialMessageDto
 import com.ugnbt.spotlabdesktop.data.remote.dto.SyncAction
 import com.ugnbt.spotlabdesktop.data.remote.dto.SyncCommandDto
 import com.ugnbt.spotlabdesktop.data.remote.dto.SyncCommandResultDto
@@ -65,6 +77,25 @@ private data class NameBody(val name: String)
 
 @Serializable
 private data class ImportPlaylistBody(val link: String, val destination: String, val name: String? = null)
+
+@Serializable
+private data class EmailBody(val email: String)
+
+/** The `{ "op": … }` shape shared by the jam and friend-request routes. */
+@Serializable
+private data class OpBody(val op: String)
+
+@Serializable
+private data class BlendCreateBody(val friendUserId: String)
+
+@Serializable
+private data class RoleBody(val role: String)
+
+@Serializable
+private data class UpdateSettingsBody(
+    @kotlinx.serialization.SerialName("site_name") val siteName: String? = null,
+    @kotlinx.serialization.SerialName("registration_enabled") val registrationEnabled: Boolean? = null,
+)
 
 /**
  * The Spotlab endpoints the desktop v1 client uses — a deliberate subset of
@@ -190,6 +221,13 @@ class SpotlabApi(private val http: SpotlabHttp, private val json: Json) {
             mapOf("trackId" to trackId.toString()),
         ).playlists
 
+    /** Always adds, never removes — unlike [togglePlaylistTrack] — for a
+     *  right-click "Ajouter à «X»" that must never surprise-remove a track
+     *  already in that playlist. */
+    suspend fun addToPlaylist(playlistId: String, input: PlaylistTrackInputDto) {
+        postBody("api/playlists/$playlistId/tracks", input)
+    }
+
     suspend fun togglePlaylistTrack(
         playlistId: String,
         input: PlaylistTrackInputDto,
@@ -268,6 +306,89 @@ class SpotlabApi(private val http: SpotlabHttp, private val json: Json) {
     }
 
     fun streamUrl(trackId: Long): String = http.streamUrl(trackId)
+
+    // --------------------------------------------------------------- social
+
+    /** Friends with their live presence, plus both directions of pending requests. */
+    suspend fun social(): SocialDataDto = getJson("api/social")
+
+    /** Presence only, for polling while the friend list is on screen. */
+    suspend fun friendActivities(): List<FriendActivityUpdateDto> =
+        getJson<FriendActivitiesDto>("api/friends/activity").activities
+
+    suspend fun sendFriendRequest(email: String): String =
+        postJson<EmailBody, SocialMessageDto>("api/social/requests", EmailBody(email)).message
+
+    /** [op] is `accept`, `decline` or `cancel`. */
+    suspend fun friendRequest(requestId: String, op: String) {
+        postBody("api/social/requests/$requestId", OpBody(op))
+    }
+
+    suspend fun removeFriend(friendshipId: String) {
+        delete("api/social/friends/$friendshipId")
+    }
+
+    // ---------------------------------------------------------------- blend
+
+    suspend fun createBlend(friendUserId: String): BlendDto =
+        postJson("api/blends", BlendCreateBody(friendUserId))
+
+    suspend fun blends(refresh: Boolean = false): List<BlendDto> =
+        getJson<BlendsResponseDto>("api/blends", mapOf("refresh" to "1".takeIf { refresh })).blends
+
+    suspend fun deleteBlend(id: String) {
+        delete("api/blends/$id")
+    }
+
+    // ----------------------------------------------------------------- jams
+
+    suspend fun inviteToJam(friendUserId: String, deviceId: String): String? =
+        jam(JamOpDto(op = "invite", friendUserId = friendUserId, deviceId = deviceId)).jamId
+
+    suspend fun acceptJamInvite(jamId: String, deviceId: String) {
+        jam(JamOpDto(op = "accept", jamId = jamId, deviceId = deviceId))
+    }
+
+    suspend fun declineJamInvite(jamId: String) {
+        jam(JamOpDto(op = "decline", jamId = jamId))
+    }
+
+    suspend fun leaveJam() {
+        jam(JamOpDto(op = "leave"))
+    }
+
+    suspend fun stopJam() {
+        jam(JamOpDto(op = "stop"))
+    }
+
+    private suspend fun jam(body: JamOpDto): JamOpResultDto = postJson("api/jam", body)
+
+    // --------------------------------------------------------------- stats
+
+    suspend fun stats(): ListeningStatsDto = getJson("api/stats")
+
+    // --------------------------------------------------------------- admin
+
+    /** 403 for anyone whose account isn't role=ADMIN. */
+    suspend fun adminUsers(): List<AdminUserDto> =
+        getJson<ListUsersResponseDto>("api/admin/users").users
+
+    suspend fun adminSetUserRole(userId: String, role: String) {
+        patchJson("api/admin/users/$userId", RoleBody(role))
+    }
+
+    suspend fun adminDeleteUser(userId: String) {
+        delete("api/admin/users/$userId")
+    }
+
+    suspend fun adminSettings(): SettingsResponseDto = getJson("api/admin/settings")
+
+    suspend fun adminUpdateSettings(
+        siteName: String? = null,
+        registrationEnabled: Boolean? = null,
+    ): SettingsResponseDto = decode(
+        patchJson("api/admin/settings", UpdateSettingsBody(siteName = siteName, registrationEnabled = registrationEnabled)),
+    )
 
     // ------------------------------------------------------------ plumbing
 

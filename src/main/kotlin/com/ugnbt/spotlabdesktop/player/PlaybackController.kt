@@ -1,9 +1,11 @@
 package com.ugnbt.spotlabdesktop.player
 
+import com.ugnbt.spotlabdesktop.data.local.SettingsStore
 import com.ugnbt.spotlabdesktop.data.remote.SpotlabApi
 import com.ugnbt.spotlabdesktop.data.remote.SpotlabHttp
 import com.ugnbt.spotlabdesktop.data.remote.dto.PlaybackStateDto
 import com.ugnbt.spotlabdesktop.data.repository.PlaybackRepository
+import java.io.File
 import kotlin.math.abs
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.launch
@@ -18,13 +20,20 @@ class PlaybackController(
     private val playback: PlaybackRepository,
     private val api: SpotlabApi,
     private val http: SpotlabHttp,
+    private val settings: SettingsStore,
+    cacheDir: File,
     scope: CoroutineScope,
 ) {
     val player = DesktopPlayer()
 
     /** See [StreamProxy]'s doc comment: VLC needs a plain local URL, mTLS and
      *  the bearer token attach through [http]'s OkHttpClient instead. */
-    private val streamProxy = StreamProxy(client = { http.client }, upstreamUrl = api::streamUrl)
+    val streamProxy = StreamProxy(
+        client = { http.client },
+        upstreamUrl = api::streamUrl,
+        cacheDir = File(cacheDir, "audio_cache"),
+        maxCacheBytes = { settings.current.audioCacheMaxBytes },
+    )
 
     private var lastTrackId: Long? = null
 

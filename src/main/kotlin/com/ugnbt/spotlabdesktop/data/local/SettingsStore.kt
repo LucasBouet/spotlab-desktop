@@ -1,5 +1,6 @@
 package com.ugnbt.spotlabdesktop.data.local
 
+import com.ugnbt.spotlabdesktop.player.AudioCacheSize
 import java.io.File
 import java.util.UUID
 import kotlinx.coroutines.Dispatchers
@@ -19,6 +20,7 @@ data class SpotlabSettings(
     /** Identifies this install to the sync engine; generated once, kept forever. */
     val deviceId: String = "",
     val deviceName: String = "",
+    val audioCacheMaxBytes: Long = AudioCacheSize.Default.bytes,
 ) {
     val hasServer: Boolean get() = !baseUrl.isNullOrBlank()
     val hasSession: Boolean get() = !token.isNullOrBlank()
@@ -56,6 +58,10 @@ class SettingsStore(configDir: File) {
     suspend fun clearSession() = update { it.copy(token = null, expiresAt = null) }
 
     suspend fun setDeviceName(name: String) = update { it.copy(deviceName = name) }
+
+    /** Takes effect on the next launch — [com.ugnbt.spotlabdesktop.player.StreamProxy]
+     *  reads it once at construction. */
+    suspend fun setAudioCacheMaxBytes(bytes: Long) = update { it.copy(audioCacheMaxBytes = bytes) }
 
     private suspend fun update(transform: (SpotlabSettings) -> SpotlabSettings) =
         withContext(Dispatchers.IO) {

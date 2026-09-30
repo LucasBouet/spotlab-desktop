@@ -1,5 +1,6 @@
 package com.ugnbt.spotlabdesktop.ui.model
 
+import com.ugnbt.spotlabdesktop.data.remote.dto.BlendTrackDto
 import com.ugnbt.spotlabdesktop.data.remote.dto.DeezerArtistDto
 import com.ugnbt.spotlabdesktop.data.remote.dto.DeezerTrackDto
 import com.ugnbt.spotlabdesktop.data.remote.dto.LikedTrackDto
@@ -40,6 +41,16 @@ fun DeezerTrackDto.toUiTrack() = UiTrack(
     duration = duration,
     artistId = artist?.id,
     albumId = album?.id,
+)
+
+fun BlendTrackDto.toUiTrack() = UiTrack(
+    id = id,
+    title = title,
+    artist = artist?.name.orEmpty(),
+    album = album?.title.orEmpty(),
+    cover = album?.coverMedium ?: album?.coverBig.orEmpty(),
+    duration = duration,
+    artistId = artist?.id,
 )
 
 fun LikedTrackDto.toUiTrack() = UiTrack(

@@ -35,11 +35,14 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.unit.dp
+import com.ugnbt.spotlabdesktop.IMAGE_CACHE_MAX_BYTES
 import com.ugnbt.spotlabdesktop.data.local.ClientCertStore
 import com.ugnbt.spotlabdesktop.data.local.SettingsStore
 import com.ugnbt.spotlabdesktop.data.remote.dto.DeviceDto
 import com.ugnbt.spotlabdesktop.data.repository.AuthRepository
 import com.ugnbt.spotlabdesktop.data.repository.PlaybackRepository
+import com.ugnbt.spotlabdesktop.player.AudioCacheSize
+import com.ugnbt.spotlabdesktop.player.StreamProxy
 import com.ugnbt.spotlabdesktop.ui.theme.SpotlabOnline
 import kotlinx.coroutines.launch
 
@@ -49,6 +52,7 @@ fun SettingsScreen(
     settings: SettingsStore,
     certStore: ClientCertStore,
     playback: PlaybackRepository,
+    streamProxy: StreamProxy,
     modifier: Modifier = Modifier,
 ) {
     val current = settings.current
@@ -102,6 +106,9 @@ fun SettingsScreen(
         }
 
         Spacer(Modifier.height(24.dp))
+        StorageSection(settings, streamProxy)
+
+        Spacer(Modifier.height(24.dp))
         Text("Certificat mTLS", style = MaterialTheme.typography.titleMedium)
         Text(
             "Nécessaire uniquement pour un serveur derrière nginx avec mTLS " +
@@ -138,6 +145,70 @@ fun SettingsScreen(
         Spacer(Modifier.height(24.dp))
         OutlinedButton(onClick = { scope.launch { auth.signOut() } }) { Text("Se déconnecter") }
     }
+}
+
+@Composable
+private fun StorageSection(settings: SettingsStore, streamProxy: StreamProxy) {
+    var refreshKey by remember { mutableStateOf(0) }
+    val audioMax = settings.current.audioCacheMaxBytes
+    val audioUsed = remember(refreshKey) { streamProxy.currentSizeBytes() }
+    val scope = rememberCoroutineScope()
+
+    val imageDiskCache = remember { coil3.SingletonImageLoader.get(coil3.PlatformContext.INSTANCE).diskCache }
+    val imageUsed = remember(refreshKey) { imageDiskCache?.size ?: 0L }
+    val imageMax = imageDiskCache?.maxSize ?: IMAGE_CACHE_MAX_BYTES
+
+    Text("Stockage", style = MaterialTheme.typography.titleMedium)
+    Spacer(Modifier.height(8.dp))
+
+    Text("Fichiers audio", style = MaterialTheme.typography.bodyMedium)
+    Text(
+        "${formatBytes(audioUsed)} utilisés sur ${formatBytes(audioMax)} — un titre déjà écouté une fois ne sera pas retéléchargé.",
+        style = MaterialTheme.typography.bodySmall,
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
+    )
+    Spacer(Modifier.height(6.dp))
+    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        AudioCacheSize.entries.forEach { size ->
+            androidx.compose.material3.FilterChip(
+                selected = size.bytes == audioMax,
+                onClick = { scope.launch { settings.setAudioCacheMaxBytes(size.bytes) } },
+                label = { Text(size.label) },
+            )
+        }
+    }
+    Text(
+        "Un nouveau plafond s'applique au prochain lancement de l'application.",
+        style = MaterialTheme.typography.bodySmall,
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
+    )
+    Spacer(Modifier.height(6.dp))
+    OutlinedButton(onClick = { streamProxy.clear(); refreshKey++ }) { Text("Vider le cache audio") }
+
+    Spacer(Modifier.height(16.dp))
+    Text("Pochettes d'albums", style = MaterialTheme.typography.bodyMedium)
+    Text(
+        "${formatBytes(imageUsed)} utilisés sur ${formatBytes(imageMax)}",
+        style = MaterialTheme.typography.bodySmall,
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
+    )
+    Spacer(Modifier.height(6.dp))
+    OutlinedButton(onClick = { imageDiskCache?.clear(); refreshKey++ }) { Text("Vider le cache images") }
+}
+
+private fun formatBytes(bytes: Long): String {
+    if (bytes < 1024) return "$bytes o"
+    val units = listOf("Ko", "Mo", "Go", "To")
+    val exponent = (kotlin.math.ln(bytes.toDouble()) / kotlin.math.ln(1024.0)).toInt().coerceIn(1, units.size)
+    val value = bytes / 1024.0.pow(exponent)
+    val formatted = if (value < 10) String.format(java.util.Locale.FRANCE, "%.1f", value) else value.toInt().toString()
+    return "$formatted ${units[exponent - 1]}"
+}
+
+private fun Double.pow(exponent: Int): Double {
+    var result = 1.0
+    repeat(exponent) { result *= this }
+    return result
 }
 
 @Composable

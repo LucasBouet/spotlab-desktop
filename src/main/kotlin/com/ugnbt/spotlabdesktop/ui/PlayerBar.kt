@@ -1,6 +1,8 @@
 package com.ugnbt.spotlabdesktop.ui
 
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -228,7 +230,8 @@ private fun QueueButton(playback: PlaybackRepository) {
                 properties = PopupProperties(focusable = true),
             ) {
                 Surface(
-                    modifier = Modifier.width(420.dp).heightIn(max = 640.dp),
+                    modifier = Modifier.width(420.dp).heightIn(max = 640.dp)
+                        .border(1.dp, MaterialTheme.colorScheme.primary, RoundedCornerShape(12.dp)),
                     tonalElevation = 6.dp,
                     shadowElevation = 12.dp,
                     shape = RoundedCornerShape(12.dp),
@@ -271,7 +274,11 @@ private fun DevicesButton(playback: PlaybackRepository) {
         }) {
             Icon(Icons.Filled.Devices, contentDescription = "Sortie audio", tint = MaterialTheme.colorScheme.onSurfaceVariant)
         }
-        DropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
+        DropdownMenu(
+            expanded = expanded,
+            onDismissRequest = { expanded = false },
+            border = BorderStroke(1.dp, MaterialTheme.colorScheme.primary),
+        ) {
             if (devices.isEmpty()) {
                 DropdownMenuItem(text = { Text("Aucun appareil") }, onClick = {})
             }

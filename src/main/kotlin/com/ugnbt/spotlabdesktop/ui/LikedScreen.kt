@@ -18,6 +18,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import com.ugnbt.spotlabdesktop.data.remote.SpotlabApi
 import com.ugnbt.spotlabdesktop.data.remote.dto.LikedTrackDto
+import com.ugnbt.spotlabdesktop.data.remote.dto.PlaylistSummaryDto
 import com.ugnbt.spotlabdesktop.data.repository.LibraryState
 import com.ugnbt.spotlabdesktop.data.repository.PlaybackRepository
 import com.ugnbt.spotlabdesktop.ui.model.toQueueItems
@@ -26,11 +27,13 @@ import com.ugnbt.spotlabdesktop.ui.model.toUiTrack
 @Composable
 fun LikedScreen(api: SpotlabApi, playback: PlaybackRepository, library: LibraryState, modifier: Modifier = Modifier) {
     var tracks by remember { mutableStateOf<List<LikedTrackDto>>(emptyList()) }
+    var playlists by remember { mutableStateOf<List<PlaylistSummaryDto>>(emptyList()) }
     val likedIds by library.likedIds.collectAsState()
 
     // Re-fetch whenever the liked-ids set changes size — covers both this
     // screen unliking a track and a like happening elsewhere (search, album).
     LaunchedEffect(likedIds.size) { runCatching { tracks = api.likedTracks() } }
+    LaunchedEffect(Unit) { runCatching { playlists = api.playlists() } }
 
     Column(modifier = modifier.fillMaxSize().padding(16.dp)) {
         Text("Titres likés", style = MaterialTheme.typography.titleLarge)
@@ -46,6 +49,8 @@ fun LikedScreen(api: SpotlabApi, playback: PlaybackRepository, library: LibraryS
                     liked = uiTrack.id in likedIds,
                     onToggleLike = { library.toggle(uiTrack) },
                     playlistApi = api,
+                    playback = playback,
+                    playlists = playlists,
                 )
             }
         }

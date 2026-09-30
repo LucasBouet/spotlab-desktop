@@ -47,7 +47,7 @@ class AppContainer {
         scope = appScope,
         onSessionExpired = { auth.onUnauthorized() },
     )
-    val playbackController = PlaybackController(playback, api, http, appScope)
+    val playbackController = PlaybackController(playback, api, http, settings, configDir, appScope)
     val library = LibraryState(api, appScope)
     val lyrics = LyricsRepository(api, lyricsOffsets, appScope)
 

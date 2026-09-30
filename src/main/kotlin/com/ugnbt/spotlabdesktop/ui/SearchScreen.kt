@@ -45,6 +45,7 @@ import com.ugnbt.spotlabdesktop.data.remote.dto.ArtistPageDto
 import com.ugnbt.spotlabdesktop.data.remote.dto.DeezerAlbumDto
 import com.ugnbt.spotlabdesktop.data.remote.dto.DeezerArtistDto
 import com.ugnbt.spotlabdesktop.data.remote.dto.DeezerTrackDto
+import com.ugnbt.spotlabdesktop.data.remote.dto.PlaylistSummaryDto
 import com.ugnbt.spotlabdesktop.data.repository.LibraryState
 import com.ugnbt.spotlabdesktop.data.repository.PlaybackRepository
 import com.ugnbt.spotlabdesktop.ui.model.toQueueItems
@@ -64,6 +65,9 @@ fun SearchScreen(api: SpotlabApi, playback: PlaybackRepository, library: Library
     var albums by remember { mutableStateOf<List<DeezerAlbumDto>>(emptyList()) }
     var artists by remember { mutableStateOf<List<DeezerArtistDto>>(emptyList()) }
     var detail by remember { mutableStateOf<SearchDetail?>(null) }
+    var playlists by remember { mutableStateOf<List<PlaylistSummaryDto>>(emptyList()) }
+
+    LaunchedEffect(Unit) { runCatching { playlists = api.playlists() } }
 
     LaunchedEffect(query) {
         if (query.isBlank()) {
@@ -109,6 +113,8 @@ fun SearchScreen(api: SpotlabApi, playback: PlaybackRepository, library: Library
                                 liked = uiTrack.id in likedIds,
                                 onToggleLike = { library.toggle(uiTrack) },
                                 playlistApi = api,
+                                playback = playback,
+                                playlists = playlists,
                             )
                         }
                     }
@@ -173,8 +179,8 @@ fun SearchScreen(api: SpotlabApi, playback: PlaybackRepository, library: Library
                 )
             }
             when (currentDetail) {
-                is SearchDetail.Album -> AlbumDetail(api, playback, library, currentDetail.id)
-                is SearchDetail.Artist -> ArtistDetail(api, playback, library, currentDetail.id)
+                is SearchDetail.Album -> AlbumDetail(api, playback, library, playlists, currentDetail.id)
+                is SearchDetail.Artist -> ArtistDetail(api, playback, library, playlists, currentDetail.id)
             }
         }
     }
@@ -221,7 +227,13 @@ private fun FloatingSearchField(query: String, onQueryChange: (String) -> Unit, 
 }
 
 @Composable
-private fun AlbumDetail(api: SpotlabApi, playback: PlaybackRepository, library: LibraryState, albumId: Long) {
+private fun AlbumDetail(
+    api: SpotlabApi,
+    playback: PlaybackRepository,
+    library: LibraryState,
+    playlists: List<PlaylistSummaryDto>,
+    albumId: Long,
+) {
     var album by remember(albumId) { mutableStateOf<DeezerAlbumDto?>(null) }
     LaunchedEffect(albumId) { runCatching { album = api.album(albumId) } }
     val tracks = album?.tracks?.data.orEmpty()
@@ -238,13 +250,21 @@ private fun AlbumDetail(api: SpotlabApi, playback: PlaybackRepository, library: 
                 liked = uiTrack.id in likedIds,
                 onToggleLike = { library.toggle(uiTrack) },
                 playlistApi = api,
+                playback = playback,
+                playlists = playlists,
             )
         }
     }
 }
 
 @Composable
-private fun ArtistDetail(api: SpotlabApi, playback: PlaybackRepository, library: LibraryState, artistId: Long) {
+private fun ArtistDetail(
+    api: SpotlabApi,
+    playback: PlaybackRepository,
+    library: LibraryState,
+    playlists: List<PlaylistSummaryDto>,
+    artistId: Long,
+) {
     var page by remember(artistId) { mutableStateOf<ArtistPageDto?>(null) }
     LaunchedEffect(artistId) { runCatching { page = api.artist(artistId) } }
     val tracks = page?.topTracks.orEmpty()
@@ -261,6 +281,8 @@ private fun ArtistDetail(api: SpotlabApi, playback: PlaybackRepository, library:
                 liked = uiTrack.id in likedIds,
                 onToggleLike = { library.toggle(uiTrack) },
                 playlistApi = api,
+                playback = playback,
+                playlists = playlists,
             )
         }
     }

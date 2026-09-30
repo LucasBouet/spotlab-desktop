@@ -3,7 +3,10 @@ package com.ugnbt.spotlabdesktop.data.repository
 import com.ugnbt.spotlabdesktop.data.local.SettingsStore
 import com.ugnbt.spotlabdesktop.data.remote.SpotlabApi
 import com.ugnbt.spotlabdesktop.data.remote.SyncClient
+import com.ugnbt.spotlabdesktop.data.remote.ApiException
 import com.ugnbt.spotlabdesktop.data.remote.dto.DeviceDto
+import com.ugnbt.spotlabdesktop.data.remote.dto.JamInviteDto
+import com.ugnbt.spotlabdesktop.data.remote.dto.JamStateDto
 import com.ugnbt.spotlabdesktop.data.remote.dto.PlayEventDto
 import com.ugnbt.spotlabdesktop.data.remote.dto.PlaybackStateDto
 import com.ugnbt.spotlabdesktop.data.remote.dto.QueueItemDto
@@ -29,6 +32,7 @@ import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
+import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -87,6 +91,16 @@ class PlaybackRepository(
 
     private val _devices = MutableStateFlow<List<DeviceDto>>(emptyList())
     val devices: StateFlow<List<DeviceDto>> = _devices.asStateFlow()
+
+    private val _jamInvites = MutableStateFlow<List<JamInviteDto>>(emptyList())
+    val jamInvites: StateFlow<List<JamInviteDto>> = _jamInvites.asStateFlow()
+
+    /** The shared session this account is in, or null while listening alone —
+     *  read off the playback state rather than tracked separately, since the
+     *  roster arrives inside every broadcast. */
+    val jam: StateFlow<JamStateDto?> = playback
+        .map { state -> state?.jam }
+        .stateIn(scope, SharingStarted.Eagerly, null)
 
     private val _connected = MutableStateFlow(false)
     val connected: StateFlow<Boolean> = _connected.asStateFlow()
@@ -161,6 +175,7 @@ class PlaybackRepository(
         _connected.value = false
         _playback.value = null
         _devices.value = emptyList()
+        _jamInvites.value = emptyList()
         appliedRevision = -1L
         room = null
         sessionExpired = false
@@ -217,9 +232,11 @@ class PlaybackRepository(
                 _connected.value = true
                 event.payload.playback?.let(::applyPlayback)
                 _devices.value = event.payload.devices
+                _jamInvites.value = event.payload.jamInvites
             }
             is SyncClient.Event.Playback -> applyPlayback(event.state)
             is SyncClient.Event.Devices -> _devices.value = event.devices
+            is SyncClient.Event.Invites -> _jamInvites.value = event.invites
             SyncClient.Event.Ping -> Unit
             is SyncClient.Event.Closed -> {
                 _connected.value = false
@@ -377,6 +394,79 @@ class PlaybackRepository(
                     _notices.tryEmit("Appareil oublié.")
                     refreshDevices()
                 }
+                .onFailure { _errors.tryEmit(it.userMessage()) }
+        }
+    }
+
+    // ------------------------------------------------------------------- jams
+
+    /**
+     * Invites a friend, creating the jam if there isn't one yet — seeded from
+     * whatever the inviter is playing. Refused with 403 for anyone who isn't
+     * an accepted friend, 400 for yourself.
+     */
+    suspend fun inviteToJam(friendUserId: String, friendName: String): String? {
+        val id = settings.current.deviceId
+        if (id.isBlank()) return null
+        val creating = jam.value == null
+        return runCatching { api.inviteToJam(friendUserId, id) }
+            .onSuccess {
+                _notices.tryEmit(
+                    if (creating) {
+                        "Jam lancée sur cet appareil — invitation envoyée à $friendName."
+                    } else {
+                        "Invitation envoyée à $friendName."
+                    },
+                )
+            }
+            .onFailure { _errors.tryEmit(it.userMessage()) }
+            .getOrNull()
+    }
+
+    fun acceptJamInvite(jamId: String) {
+        val invite = _jamInvites.value.firstOrNull { it.jamId == jamId }
+        scope.launch {
+            val id = settings.current.deviceId
+            if (id.isBlank()) return@launch
+            runCatching { api.acceptJamInvite(jamId, id) }
+                .onSuccess {
+                    val host = invite?.hostName?.takeIf { it.isNotBlank() }
+                    _notices.tryEmit(if (host != null) "Vous avez rejoint la jam de $host." else "Jam rejointe.")
+                }
+                .onFailure { failure ->
+                    if (failure is ApiException) removeInvite(jamId)
+                    _errors.tryEmit(failure.userMessage())
+                }
+        }
+    }
+
+    fun declineJamInvite(jamId: String) {
+        val declined = _jamInvites.value.firstOrNull { it.jamId == jamId } ?: return
+        removeInvite(jamId)
+        scope.launch {
+            runCatching { api.declineJamInvite(jamId) }.onFailure { failure ->
+                _jamInvites.update { invites -> if (invites.any { it.jamId == jamId }) invites else invites + declined }
+                _errors.tryEmit(failure.userMessage())
+            }
+        }
+    }
+
+    private fun removeInvite(jamId: String) {
+        _jamInvites.update { invites -> invites.filterNot { it.jamId == jamId } }
+    }
+
+    fun leaveJam() {
+        scope.launch {
+            runCatching { api.leaveJam() }
+                .onSuccess { _notices.tryEmit("Vous avez quitté la jam.") }
+                .onFailure { _errors.tryEmit(it.userMessage()) }
+        }
+    }
+
+    fun stopJam() {
+        scope.launch {
+            runCatching { api.stopJam() }
+                .onSuccess { _notices.tryEmit("Jam arrêtée pour tout le monde.") }
                 .onFailure { _errors.tryEmit(it.userMessage()) }
         }
     }

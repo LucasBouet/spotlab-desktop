@@ -1,6 +1,7 @@
 package com.ugnbt.spotlabdesktop.data.remote
 
 import com.ugnbt.spotlabdesktop.data.remote.dto.DeviceDto
+import com.ugnbt.spotlabdesktop.data.remote.dto.JamInviteDto
 import com.ugnbt.spotlabdesktop.data.remote.dto.PlaybackStateDto
 import com.ugnbt.spotlabdesktop.data.remote.dto.SyncSnapshotDto
 import kotlinx.coroutines.channels.awaitClose
@@ -24,6 +25,7 @@ class SyncClient(private val http: SpotlabHttp, private val json: Json) {
         data class Snapshot(val payload: SyncSnapshotDto) : Event
         data class Playback(val state: PlaybackStateDto) : Event
         data class Devices(val devices: List<DeviceDto>) : Event
+        data class Invites(val invites: List<JamInviteDto>) : Event
         data object Ping : Event
 
         /** [status] is the HTTP status when the stream was refused outright. */
@@ -52,6 +54,7 @@ class SyncClient(private val http: SpotlabHttp, private val json: Json) {
                     "snapshot" -> decodeOrNull<SyncSnapshotDto>(data)?.let(Event::Snapshot)
                     "playback" -> decodeOrNull<PlaybackStateDto>(data)?.let(Event::Playback)
                     "devices" -> decodeOrNull<List<DeviceDto>>(data)?.let(Event::Devices)
+                    "jam-invites" -> decodeOrNull<List<JamInviteDto>>(data)?.let(Event::Invites)
                     "ping" -> Event.Ping
                     else -> null
                 }

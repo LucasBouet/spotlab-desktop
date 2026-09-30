@@ -14,10 +14,16 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.AdminPanelSettings
+import androidx.compose.material.icons.filled.BarChart
 import androidx.compose.material.icons.filled.FavoriteBorder
+import androidx.compose.material.icons.filled.Groups
 import androidx.compose.material.icons.filled.Home
+import androidx.compose.material.icons.filled.People
 import androidx.compose.material.icons.filled.QueueMusic
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Settings
@@ -47,6 +53,10 @@ private enum class NavTab(val label: String) {
     Search("Rechercher"),
     Playlists("Playlists"),
     Liked("Titres likés"),
+    Social("Amis"),
+    Blend("Blend"),
+    Stats("Stats"),
+    Admin("Admin"),
     Settings("Réglages"),
 }
 
@@ -61,28 +71,40 @@ fun App(container: AppContainer) {
                 }
                 SessionState.NoServer -> ServerSetupScreen(container.auth, container.clientCertStore)
                 is SessionState.SignedOut -> LoginScreen(container.auth, state)
-                is SessionState.SignedIn -> MainScreen(container)
+                is SessionState.SignedIn -> MainScreen(container, state)
             }
         }
     }
 }
 
 @Composable
-private fun MainScreen(container: AppContainer) {
+private fun MainScreen(container: AppContainer, session: SessionState.SignedIn) {
     var tab by remember { mutableStateOf(NavTab.Home) }
     var nowPlayingOpen by remember { mutableStateOf(false) }
+    val userId = session.user.id
+    val isAdmin = session.user.isAdmin
 
     Box(Modifier.fillMaxSize()) {
         Column(Modifier.fillMaxSize()) {
             Row(Modifier.weight(1f)) {
-                NavRail(selected = tab, onSelect = { tab = it })
+                NavRail(selected = tab, isAdmin = isAdmin, onSelect = { tab = it })
                 Box(Modifier.weight(1f).fillMaxSize()) {
                     when (tab) {
                         NavTab.Home -> HomeScreen(container.api, container.playback)
                         NavTab.Search -> SearchScreen(container.api, container.playback, container.library)
                         NavTab.Playlists -> PlaylistsScreen(container.api, container.playback, container.library)
                         NavTab.Liked -> LikedScreen(container.api, container.playback, container.library)
-                        NavTab.Settings -> SettingsScreen(container.auth, container.settings, container.clientCertStore, container.playback)
+                        NavTab.Social -> SocialScreen(container.api, container.playback, userId)
+                        NavTab.Blend -> BlendScreen(container.api, container.playback)
+                        NavTab.Stats -> StatsScreen(container.api)
+                        NavTab.Admin -> if (isAdmin) AdminScreen(container.api, userId) else HomeScreen(container.api, container.playback)
+                        NavTab.Settings -> SettingsScreen(
+                            container.auth,
+                            container.settings,
+                            container.clientCertStore,
+                            container.playback,
+                            container.playbackController.streamProxy,
+                        )
                     }
                 }
             }
@@ -109,9 +131,9 @@ private fun MainScreen(container: AppContainer) {
  *  — that component always packs its items against the top; this one centers
  *  them vertically in the available height, as requested. */
 @Composable
-private fun NavRail(selected: NavTab, onSelect: (NavTab) -> Unit) {
+private fun NavRail(selected: NavTab, isAdmin: Boolean, onSelect: (NavTab) -> Unit) {
     Column(
-        modifier = Modifier.fillMaxHeight().width(96.dp).padding(vertical = 16.dp),
+        modifier = Modifier.fillMaxHeight().width(96.dp).verticalScroll(rememberScrollState()).padding(vertical = 16.dp),
         verticalArrangement = Arrangement.Bottom,
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
@@ -122,6 +144,16 @@ private fun NavRail(selected: NavTab, onSelect: (NavTab) -> Unit) {
         NavRailItem(Icons.Filled.QueueMusic, NavTab.Playlists.label, selected == NavTab.Playlists) { onSelect(NavTab.Playlists) }
         Spacer(Modifier.height(8.dp))
         NavRailItem(Icons.Filled.FavoriteBorder, NavTab.Liked.label, selected == NavTab.Liked) { onSelect(NavTab.Liked) }
+        Spacer(Modifier.height(8.dp))
+        NavRailItem(Icons.Filled.People, NavTab.Social.label, selected == NavTab.Social) { onSelect(NavTab.Social) }
+        Spacer(Modifier.height(8.dp))
+        NavRailItem(Icons.Filled.Groups, NavTab.Blend.label, selected == NavTab.Blend) { onSelect(NavTab.Blend) }
+        Spacer(Modifier.height(8.dp))
+        NavRailItem(Icons.Filled.BarChart, NavTab.Stats.label, selected == NavTab.Stats) { onSelect(NavTab.Stats) }
+        if (isAdmin) {
+            Spacer(Modifier.height(8.dp))
+            NavRailItem(Icons.Filled.AdminPanelSettings, NavTab.Admin.label, selected == NavTab.Admin) { onSelect(NavTab.Admin) }
+        }
         Spacer(Modifier.height(8.dp))
         NavRailItem(Icons.Filled.Settings, NavTab.Settings.label, selected == NavTab.Settings) { onSelect(NavTab.Settings) }
     }
