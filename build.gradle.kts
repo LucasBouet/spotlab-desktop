@@ -49,6 +49,14 @@ compose.desktop {
             targetFormats(TargetFormat.Rpm, TargetFormat.Deb, TargetFormat.AppImage, TargetFormat.Msi)
             packageName = "spotlab-desktop"
             packageVersion = "0.1.0"
+
+            // jlink's automatic module detection (jdeps) can't see what VLCJ
+            // loads dynamically through JNA, so it under-trims the bundled
+            // runtime — the embedded JVM ends up missing a module and
+            // refuses to start ("Failed to launch JVM"). Bundling every
+            // module sidesteps the detection entirely, at the cost of a
+            // larger installer.
+            includeAllModules = true
         }
     }
 }
