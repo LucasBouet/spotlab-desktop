@@ -91,7 +91,7 @@ fun BlendScreen(api: SpotlabApi, playback: PlaybackRepository, modifier: Modifie
                     }
                 }
             }
-            LazyColumn {
+            ScrollableLazyColumn {
                 items(blends, key = { it.id }) { blend ->
                     Row(
                         modifier = Modifier.fillMaxWidth().clickable { opened = blend.id }.padding(vertical = 8.dp),
@@ -125,7 +125,7 @@ fun BlendScreen(api: SpotlabApi, playback: PlaybackRepository, modifier: Modifie
                 Text(blend?.title.orEmpty(), style = MaterialTheme.typography.titleMedium)
             }
             val tracks = blend?.tracks.orEmpty()
-            LazyColumn {
+            ScrollableLazyColumn {
                 items(tracks, key = { it.id }) { track ->
                     TrackRow(
                         track.toUiTrack(),

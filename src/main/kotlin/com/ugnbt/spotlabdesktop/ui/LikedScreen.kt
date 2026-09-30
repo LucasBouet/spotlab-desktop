@@ -37,7 +37,7 @@ fun LikedScreen(api: SpotlabApi, playback: PlaybackRepository, library: LibraryS
 
     Column(modifier = modifier.fillMaxSize().padding(16.dp)) {
         Text("Titres likés", style = MaterialTheme.typography.titleLarge)
-        LazyColumn {
+        ScrollableLazyColumn {
             items(tracks, key = { it.deezerTrackId }) { track ->
                 val uiTrack = track.toUiTrack()
                 TrackRow(

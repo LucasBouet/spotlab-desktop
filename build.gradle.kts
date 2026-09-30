@@ -57,6 +57,15 @@ compose.desktop {
             // module sidesteps the detection entirely, at the cost of a
             // larger installer.
             includeAllModules = true
+
+            // Off by default in jpackage/Compose Desktop — without these
+            // the MSI installs the app with no discoverable entry point at
+            // all (no Start Menu shortcut).
+            windows {
+                menu = true
+                menuGroup = "Spotlab"
+                shortcut = true
+            }
         }
     }
 }

@@ -25,11 +25,25 @@ class DesktopPlayer {
         fun onEnded()
     }
 
+    fun interface ErrorListener {
+        fun onError()
+    }
+
     var bufferingListener: BufferingListener? = null
 
     /** Fired when libVLC reaches the end of the current media on its own —
      *  never for [stop] or starting a new [play]. */
     var endedListener: EndedListener? = null
+
+    /**
+     * Fired when libVLC gives up on the current media (a resolve/network
+     * failure upstream, most often). Without this, a failure left
+     * [bufferingListener] stuck on its last "buffering" call forever — the
+     * `playing` event that would have cleared it never arrives — freezing
+     * the extrapolated position on screen with no audio and no visible
+     * error.
+     */
+    var errorListener: ErrorListener? = null
 
     // Audio only, no player UI of our own to embed a video surface into —
     // without `--no-video` libVLC still opens its own top-level window the
@@ -51,6 +65,11 @@ class DesktopPlayer {
 
             override fun finished(mediaPlayer: MediaPlayer) {
                 endedListener?.onEnded()
+            }
+
+            override fun error(mediaPlayer: MediaPlayer) {
+                bufferingListener?.onBufferingChanged(false)
+                errorListener?.onError()
             }
         })
     }

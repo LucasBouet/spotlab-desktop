@@ -86,7 +86,7 @@ fun AdminScreen(api: SpotlabApi, currentUserId: String, modifier: Modifier = Mod
         Spacer(Modifier.height(24.dp))
         Text("Utilisateurs · ${users.size}", style = MaterialTheme.typography.titleMedium)
         Spacer(Modifier.height(8.dp))
-        LazyColumn {
+        ScrollableLazyColumn {
             items(users, key = { it.id }) { user ->
                 Row(
                     modifier = Modifier.fillMaxWidth().padding(vertical = 6.dp),

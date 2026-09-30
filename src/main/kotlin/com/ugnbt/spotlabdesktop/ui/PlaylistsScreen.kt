@@ -64,7 +64,7 @@ fun PlaylistsScreen(api: SpotlabApi, playback: PlaybackRepository, library: Libr
                     Icon(Icons.Filled.Add, contentDescription = "Créer une playlist")
                 }
             }
-            LazyColumn {
+            ScrollableLazyColumn {
                 items(playlists, key = { it.id }) { playlist ->
                     Row(
                         modifier = Modifier.fillMaxWidth()
@@ -107,7 +107,7 @@ fun PlaylistsScreen(api: SpotlabApi, playback: PlaybackRepository, library: Libr
             }
             val tracks = detail?.tracks.orEmpty()
             val likedIds by library.likedIds.collectAsState()
-            LazyColumn {
+            ScrollableLazyColumn {
                 items(tracks, key = { it.rowKey }) { track ->
                     val uiTrack = track.toUiTrack()
                     Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {

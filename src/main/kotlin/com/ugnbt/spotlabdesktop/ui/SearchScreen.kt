@@ -100,7 +100,7 @@ fun SearchScreen(api: SpotlabApi, playback: PlaybackRepository, library: Library
             when (tab) {
                 0 -> {
                     val likedIds by library.likedIds.collectAsState()
-                    LazyColumn {
+                    ScrollableLazyColumn {
                         items(tracks, key = { it.id }) { track ->
                             val uiTrack = track.toUiTrack()
                             TrackRow(
@@ -119,7 +119,7 @@ fun SearchScreen(api: SpotlabApi, playback: PlaybackRepository, library: Library
                         }
                     }
                 }
-                1 -> LazyColumn {
+                1 -> ScrollableLazyColumn {
                     items(albums, key = { it.id }) { album ->
                         Row(
                             modifier = Modifier.fillMaxWidth()
@@ -145,7 +145,7 @@ fun SearchScreen(api: SpotlabApi, playback: PlaybackRepository, library: Library
                         }
                     }
                 }
-                2 -> LazyColumn {
+                2 -> ScrollableLazyColumn {
                     items(artists, key = { it.id ?: it.name }) { artist ->
                         Row(
                             modifier = Modifier.fillMaxWidth()
@@ -238,7 +238,7 @@ private fun AlbumDetail(
     LaunchedEffect(albumId) { runCatching { album = api.album(albumId) } }
     val tracks = album?.tracks?.data.orEmpty()
     val likedIds by library.likedIds.collectAsState()
-    LazyColumn {
+    ScrollableLazyColumn {
         items(tracks, key = { it.id }) { track ->
             val uiTrack = track.toUiTrack()
             TrackRow(
@@ -269,7 +269,7 @@ private fun ArtistDetail(
     LaunchedEffect(artistId) { runCatching { page = api.artist(artistId) } }
     val tracks = page?.topTracks.orEmpty()
     val likedIds by library.likedIds.collectAsState()
-    LazyColumn {
+    ScrollableLazyColumn {
         items(tracks, key = { it.id }) { track ->
             val uiTrack = track.toUiTrack()
             TrackRow(

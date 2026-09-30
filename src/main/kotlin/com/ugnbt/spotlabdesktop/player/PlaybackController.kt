@@ -26,16 +26,29 @@ class PlaybackController(
 ) {
     val player = DesktopPlayer()
 
-    /** See [StreamProxy]'s doc comment: VLC needs a plain local URL, mTLS and
-     *  the bearer token attach through [http]'s OkHttpClient instead. */
+    /**
+     * See [StreamProxy]'s doc comment: VLC needs a plain local URL, mTLS and
+     * the bearer token attach through [http]'s OkHttpClient instead.
+     *
+     * [SpotlabHttp.streamingClient], not [SpotlabHttp.client]: an uncached
+     * track can legitimately take longer than the ordinary 30s read timeout
+     * to resolve server-side (yt-dlp), same reasoning as [prefetch] below —
+     * hitting that timeout mid-stream is exactly what left playback frozen
+     * at 0:00 with no audio and no error shown.
+     */
     val streamProxy = StreamProxy(
-        client = { http.client },
+        client = { http.streamingClient },
         upstreamUrl = api::streamUrl,
         cacheDir = File(cacheDir, "audio_cache"),
         maxCacheBytes = { settings.current.audioCacheMaxBytes },
     )
 
     private var lastTrackId: Long? = null
+    private var prefetchedTrackId: Long? = null
+
+    /** One retry per track id, so a genuinely broken stream doesn't retry
+     *  forever — see [DesktopPlayer.errorListener]. */
+    private var retriedTrackId: Long? = null
 
     /**
      * Set on libVLC's own `finished` callback (a native thread, hence
@@ -57,6 +70,16 @@ class PlaybackController(
             pendingRestart = true
             playback.trackEnded()
         }
+        player.errorListener = DesktopPlayer.ErrorListener {
+            val failedTrackId = lastTrackId
+            if (failedTrackId != null && failedTrackId != retriedTrackId) {
+                retriedTrackId = failedTrackId
+                lastTrackId = null // forces the next apply() to retry play()
+                apply(playback.playback.value)
+            } else {
+                playback.reportSystemFailure("Lecture impossible pour ce titre.")
+            }
+        }
         scope.launch {
             playback.playback.collect(::apply)
         }
@@ -76,9 +99,19 @@ class PlaybackController(
 
         if (current.id != lastTrackId || pendingRestart) {
             pendingRestart = false
+            if (current.id != retriedTrackId) retriedTrackId = null
             lastTrackId = current.id
             player.play(streamProxy.localUrl(current.id), emptyMap())
             player.seekTo(state.positionSeconds, durationSeconds)
+        }
+
+        // Warms the server-side cache for whatever plays next, so the slow
+        // path (an uncached track resolved live through yt-dlp) happens
+        // ahead of time instead of the moment playback actually needs it.
+        val nextId = state.queue.firstOrNull()?.id
+        if (nextId != null && nextId != prefetchedTrackId) {
+            prefetchedTrackId = nextId
+            playback.prefetch(nextId)
         }
 
         if (state.isPlaying) player.resume() else player.pause()
