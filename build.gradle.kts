@@ -46,7 +46,7 @@ compose.desktop {
         mainClass = "com.ugnbt.spotlabdesktop.MainKt"
 
         nativeDistributions {
-            targetFormats(TargetFormat.Rpm, TargetFormat.Deb, TargetFormat.AppImage)
+            targetFormats(TargetFormat.Rpm, TargetFormat.Deb, TargetFormat.AppImage, TargetFormat.Msi)
             packageName = "spotlab-desktop"
             packageVersion = "0.1.0"
         }
